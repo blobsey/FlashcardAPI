@@ -2,8 +2,10 @@ from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from datetime import date, datetime, timedelta
 from math import exp, pow
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///flashcards.db'
 db = SQLAlchemy(app)
 
@@ -49,6 +51,20 @@ def get_flashcards():
     flashcards_list = [flashcard.serialize() for flashcard in flashcards]
     return jsonify(flashcards_list)
 
+@app.route('/delete/<int:card_id>', methods=['DELETE'])
+def delete_flashcard(card_id):
+    card = Flashcard.query.get(card_id)
+    if not card:
+        return jsonify({"message": "Card not found"}), 404
+
+    try:
+        db.session.delete(card)
+        db.session.commit()
+        return jsonify({"message": "Flashcard deleted successfully"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": str(e)}), 400
+
 @app.route('/review/<int:card_id>', methods=['POST'])
 def review_flashcard(card_id):
     card = Flashcard.query.get(card_id)
@@ -82,6 +98,8 @@ def handle_review(card, grade):
         # Calculate subsequent difficulty for subsequent reviews
         card.difficulty = (w[7] * D0(3) + (1 - w[7])) * (card.difficulty - w[6] * (grade - 3))
 
+    card.difficulty = max(1, min(card.difficulty, 10)) # Bound between [1, 10] inclusive
+
 
     def calculate_new_stability_on_success(D, S, G):
         inner_term = exp(w[8]) * (11 - D) * S**(-w[9]) * (exp(w[10] * (1 - R)) - 1)
@@ -97,9 +115,9 @@ def handle_review(card, grade):
     # Calculate stability
     if card.stability is None: # Initial stability
         card.stability = w[grade - 1]  
-    elif grade == 1: # Subsequent stability on success
+    elif grade == 1: # Subsequent stability on failure
         card.stability = calculate_new_stability_on_fail(card.difficulty, card.stability)
-    else: # Subsequent stability on fail
+    else: # Subsequent stability on success
         card.stability = calculate_new_stability_on_success(card.difficulty, card.stability, grade)
     
     # Calculate next review date using FSRS-4.5
@@ -119,11 +137,11 @@ def handle_review(card, grade):
 def get_next_card():
     today = date.today()
     # Query for cards whose review date is today or in the past, sorted by review date
-    overdue_cards = Flashcard.query.filter(Flashcard.review_date <= today).order_by(Flashcard.review_date).all()
+    due_cards = Flashcard.query.filter(Flashcard.review_date <= today).order_by(Flashcard.review_date).all()
 
-    if overdue_cards:
+    if due_cards:
         # Serialize and return the most overdue card
-        return jsonify(overdue_cards[0].serialize())
+        return jsonify(due_cards[0].serialize())
     else:
         # No cards are due for review
         return jsonify({"message": "No cards to review right now."}), 200
