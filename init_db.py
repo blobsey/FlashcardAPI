@@ -1,4 +1,4 @@
-from flashcard import db, app
+from flashcard_server import db, app
 
 with app.app_context():
     db.create_all()
