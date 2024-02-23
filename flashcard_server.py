@@ -7,6 +7,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 import os
 import sqlite3
+import random
 
 
 app = Flask(__name__)
@@ -242,15 +243,20 @@ def handle_review(card, grade):
 @app.route('/next', methods=['GET'])
 def get_next_card():
     today = date.today()
-    # Query for cards whose review date is today or in the past, sorted by review date
-    due_cards = Flashcard.query.filter(Flashcard.review_date <= today).order_by(Flashcard.review_date).all()
+    # Query for cards whose review date is today or in the past
+    due_cards = Flashcard.query.filter(Flashcard.review_date <= today).all()
 
-    if due_cards:
-        # Serialize and return the most overdue card
-        return jsonify(due_cards[0].serialize())
-    else:
+    if not due_cards:
         # No cards are due for review
         return jsonify({"message": "No cards to review right now."}), 200
+
+    # Randomly select a card from the earliest review date (most overdue cards)
+    earliest_date = min(card.review_date for card in due_cards)
+    earliest_cards = [card for card in due_cards if card.review_date == earliest_date]
+    selected_card = random.choice(earliest_cards)
+
+    # Serialize and return the randomly selected card
+    return jsonify(selected_card.serialize())
 
 @app.route('/get/<int:card_id>', methods=['GET'])
 def get_flashcard(card_id):

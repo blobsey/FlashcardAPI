@@ -2,8 +2,4 @@ instance/
 __pycache__/
 venv/
 *.pem
-__pycache__/flashcard.cpython-39.pyc
-__pycache__/flashcard.cpython-39.pyc
-instance/flashcards.db
-__pycache__/flashcard.cpython-39.pyc
-__pycache__/flashcard.cpython-39.pyc
+
